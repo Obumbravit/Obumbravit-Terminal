@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-inter: 'Inter', sans-serif;
+    --font-jetbrains-mono: 'JetBrains Mono', monospace;
+  }
+  
+  body {
+    @apply bg-slate-dark text-white;
+  }
+}
+
+@layer components {
+  .gradient-text {
+    @apply bg-gradient-to-r from-terminal-accent via-accent-green to-dark-neon bg-clip-text text-transparent;
+  }
+  
+  .glass-effect {
+    @apply backdrop-blur-xl bg-glass-white border border-glass-border;
+  }
+  
+  .glass-effect-strong {
+    @apply backdrop-blur-2xl bg-glass-white/20 border border-glass-border/50;
+  }
+  
+  .card-hover {
+    @apply transition-all duration-500 hover:scale-105 hover:shadow-2xl hover:shadow-terminal-accent/20 hover:border-terminal-accent/30;
+  }
+  
+  .text-glow {
+    text-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+  }
+  
+  .neon-border {
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2), inset 0 0 10px rgba(16, 185, 129, 0.05);
+  }
+  
+  .matrix-bg {
+    background: linear-gradient(90deg, transparent 98%, rgba(16, 185, 129, 0.05) 100%);
+    background-size: 20px 20px;
+  }
+  
+  .scan-line {
+    position: absolute;
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.3), transparent);
+    animation: scan 3s ease-in-out infinite;
+  }
+  
+  .terminal-text {
+    font-family: 'JetBrains Mono', monospace;
+    color: #10b981;
+    text-shadow: 0 0 2px rgba(16, 185, 129, 0.3);
+  }
+  
+  .hologram-effect {
+    background: linear-gradient(45deg, transparent 30%, rgba(16, 185, 129, 0.05) 50%, transparent 70%);
+    background-size: 200% 200%;
+    animation: gradient 3s ease infinite;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Terminal text animation */
+  .terminal-text-animate {
+    animation: terminalTextFade 0.5s ease-in-out;
+  }
+  
+  @keyframes terminalTextFade {
+    0% {
+      color: rgb(74 222 128); /* green-400 */
+    }
+    100% {
+      color: rgb(209 213 219); /* gray-300 */
+    }
+  }
+}
