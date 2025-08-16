@@ -7,6 +7,11 @@ module.exports = {
   ],
   theme: {
     extend: {
+      screens: {
+        'xs': '475px',
+        '3xl': '1600px',
+        '4xl': '1920px',
+      },
       colors: {
         'dark-green': '#0a0a0a',
         'accent-green': '#10b981',
@@ -30,6 +35,11 @@ module.exports = {
         'mono': ['JetBrains Mono', 'monospace'],
         'sans': ['Inter', 'sans-serif'],
       },
+      spacing: {
+        '18': '4.5rem',
+        '88': '22rem',
+        '128': '32rem',
+      },
       animation: {
         'gradient': 'gradient 8s linear infinite',
         'float': 'float 6s ease-in-out infinite',
@@ -39,6 +49,10 @@ module.exports = {
         'matrix': 'matrix 20s linear infinite',
         'glitch': 'glitch 0.3s ease-in-out infinite',
         'neon-flicker': 'neon-flicker 1.5s infinite alternate',
+        'typing': 'typing 3.5s steps(40, end)',
+        'blink': 'blink 1s infinite',
+        'fade-in': 'fadeIn 0.5s ease-in-out',
+        'slide-up': 'slideUp 0.3s ease-out',
       },
       keyframes: {
         gradient: {
@@ -77,6 +91,21 @@ module.exports = {
         'neon-flicker': {
           '0%': { textShadow: '0 0 2px #10b981, 0 0 4px #10b981' },
           '100%': { textShadow: '0 0 1px #10b981, 0 0 2px #10b981' },
+        },
+        'typing': {
+          'from': { width: '0' },
+          'to': { width: '100%' },
+        },
+        'blink': {
+          '50%': { borderColor: 'transparent' },
+        },
+        'fadeIn': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        'slideUp': {
+          '0%': { transform: 'translateY(10px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
         },
       },
     },
