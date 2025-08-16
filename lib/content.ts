@@ -53,14 +53,14 @@ export interface Skills {
 }
 
 export const SKILLS: Skills = {
-  ios: 95,
-  web: 92,
-  desktop: 88,
-  uiux: 90,
-  api: 93,
-  database: 87,
-  performance: 89,
-  architecture: 91
+  ios: 0,
+  web: 0,
+  desktop: 0,
+  uiux: 0,
+  api: 0,
+  database: 0,
+  performance: 0,
+  architecture: 0
 }
 
 export interface Services {
@@ -117,3 +117,99 @@ export const formatTechStack = (stack: TechStack) => {
 
 export const formatServices = (services: Services) => 
   Object.values(services).map(service => `- ${service}`).join('\n')
+
+// GitHub-based statistics calculation
+export interface GitHubStats {
+  totalRepos: number
+  totalStars: number
+  totalForks: number
+  totalCommits: number
+  languages: Record<string, number>
+  topLanguages: Array<{ language: string; percentage: number; lines: number }>
+  skills: Skills
+  experience: number
+  lastCommit: string
+  mostActiveRepo: string
+}
+
+export function calculateGitHubStats(repos: any[]): GitHubStats {
+  const languages: Record<string, number> = {}
+  let totalStars = 0
+  let totalForks = 0
+  let totalCommits = 0
+  let mostActiveRepo = ''
+  let maxStars = 0
+  
+  // Calculate totals and language usage
+  repos.forEach(repo => {
+    totalStars += repo.stargazers_count || 0
+    totalForks += repo.forks_count || 0
+    
+    if (repo.language) {
+      languages[repo.language] = (languages[repo.language] || 0) + 1
+    }
+    
+    if ((repo.stargazers_count || 0) > maxStars) {
+      maxStars = repo.stargazers_count || 0
+      mostActiveRepo = repo.name
+    }
+  })
+  
+  // Calculate language percentages based on actual repository count
+  const totalRepos = repos.length
+  const topLanguages = Object.entries(languages)
+    .map(([language, count]) => ({
+      language,
+      percentage: Math.round((count / totalRepos) * 100),
+      lines: count * 1000 // Simple estimate: 1000 lines per repo using this language
+    }))
+    .sort((a, b) => b.percentage - a.percentage)
+    .slice(0, 10)
+  
+  // Calculate skills based purely on language usage (no hardcoded bonuses)
+  const skills: Skills = {
+    ios: calculateSkillLevel(languages, ['Swift', 'Objective-C']),
+    web: calculateSkillLevel(languages, ['JavaScript', 'TypeScript', 'HTML', 'CSS']),
+    desktop: calculateSkillLevel(languages, ['C++', 'C#', 'Java', 'Python']),
+    uiux: calculateSkillLevel(languages, ['CSS', 'SCSS', 'HTML']),
+    api: calculateSkillLevel(languages, ['JavaScript', 'TypeScript', 'Python', 'Java']),
+    database: calculateSkillLevel(languages, ['SQL', 'Python']),
+    performance: calculateSkillLevel(languages, ['C++', 'Rust', 'Go']),
+    architecture: calculateSkillLevel(languages, ['TypeScript', 'Java', 'Python', 'C++'])
+  }
+  
+  // Calculate experience based on repository count (more conservative)
+  const experience = Math.max(1, Math.floor(totalRepos / 3)) // 1 year per 3 repos
+  
+  return {
+    totalRepos,
+    totalStars,
+    totalForks,
+    totalCommits,
+    languages,
+    topLanguages,
+    skills,
+    experience,
+    lastCommit: new Date().toISOString(),
+    mostActiveRepo
+  }
+}
+
+function calculateSkillLevel(languages: Record<string, number>, relevantLanguages: string[]): number {
+  let totalRelevant = 0
+  let totalAll = 0
+  
+  Object.entries(languages).forEach(([language, count]) => {
+    totalAll += count
+    if (relevantLanguages.some(lang => 
+      language.toLowerCase().includes(lang.toLowerCase())
+    )) {
+      totalRelevant += count
+    }
+  })
+  
+  if (totalAll === 0) return 0 // No data means no skill level
+  
+  const percentage = (totalRelevant / totalAll) * 100
+  return Math.round(percentage) // Pure percentage, no artificial bonuses
+}

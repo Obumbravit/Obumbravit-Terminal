@@ -6,6 +6,8 @@ import {
   SYSTEM_INFO, 
   BOOT_MESSAGES, 
   FOOTER_TEXT,
+  calculateGitHubStats,
+  GitHubStats,
   formatDate,
   formatUptime,
   formatSkills,
@@ -15,11 +17,13 @@ import {
 import { GitHubRepo } from './github'
 
 export class ContentGenerator {
-  static generateAbout(): string {
+  static generateAbout(repos: GitHubRepo[] = []): string {
+    const stats = calculateGitHubStats(repos)
+    
     return `# About ${PROFILE_DATA.name}
 
 ## Who I Am
-${PROFILE_DATA.title} with ${PROFILE_DATA.experience} of professional experience specializing in iOS, web, and desktop application development. Currently employed as a professional full-stack developer at a technology company.
+${PROFILE_DATA.title} with ${stats.experience} years of calculated experience based on GitHub repository analysis. Currently employed as a professional full-stack developer at a technology company.
 
 ## What I Do
 I design and develop modern applications across multiple platforms, from native iOS apps with Swift/SwiftUI to responsive web applications and desktop software. My work combines clean code with beautiful design to create products that users love.
@@ -37,18 +41,25 @@ I design and develop modern applications across multiple platforms, from native 
 - ${SERVICES.uiux}
 - ${SERVICES.api}
 
-## Technologies
+## Technologies (Based on GitHub Analysis)
 ${formatTechStack(TECH_STACK)}
+
+## Repository Statistics
+- **Total Repositories**: ${stats.totalRepos}
+- **Total Stars**: ${stats.totalStars.toLocaleString()}
+- **Most Popular Language**: ${stats.topLanguages[0]?.language || 'Not available'}
 
 ---
 ${FOOTER_TEXT}`
   }
 
-  static generateResume(): string {
+  static generateResume(repos: GitHubRepo[] = []): string {
+    const stats = calculateGitHubStats(repos)
+    
     return `# ${PROFILE_DATA.name} - Resume
 
 ## Professional Summary
-${PROFILE_DATA.title} with ${PROFILE_DATA.experience} of experience specializing in iOS, web, and desktop application development. Currently employed as a professional full-stack developer at a technology company.
+${PROFILE_DATA.title} with ${stats.experience} years of calculated experience based on GitHub repository analysis. Currently employed as a professional full-stack developer at a technology company.
 
 ## Specializations
 - ${SERVICES.ios}
@@ -57,18 +68,25 @@ ${PROFILE_DATA.title} with ${PROFILE_DATA.experience} of experience specializing
 - ${SERVICES.uiux}
 - ${SERVICES.api}
 
-## Technical Skills
-${formatSkills(SKILLS)}
+## Technical Skills (Calculated from GitHub)
+${Object.entries(stats.skills).map(([skill, level]) => 
+  `- **${skill.charAt(0).toUpperCase() + skill.slice(1)} Development**: ${level}%`
+).join('\n')}
 
 ## Core Technologies
 ${formatTechStack(TECH_STACK)}
 
 ## Experience
-- **${PROFILE_DATA.experience}** of professional development experience
+- **${stats.experience} years** of calculated development experience
 - **Full-Stack Development**: Building complete applications across platforms
 - **iOS Development**: Native iOS apps with modern Swift/SwiftUI
 - **Web Development**: Responsive web applications and APIs
 - **Desktop Development**: Cross-platform desktop applications
+
+## GitHub Statistics
+- **Total Repositories**: ${stats.totalRepos}
+- **Total Stars**: ${stats.totalStars.toLocaleString()}
+- **Total Forks**: ${stats.totalForks.toLocaleString()}
 
 ## Contact
 - Email: ${PROFILE_DATA.email}
@@ -101,39 +119,32 @@ Last Updated: ${formatDate()}`
   }
 
   static generateSkills(repos: GitHubRepo[] = []): string {
-    const languages = repos
-      .map(repo => repo.language)
-      .filter(Boolean) as string[]
+    const stats = calculateGitHubStats(repos)
     
-    const languageCount = languages.reduce((acc, lang) => {
-      acc[lang] = (acc[lang] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
-
-    const topLanguages = Object.entries(languageCount)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 10)
-
     return `# Technical Skills
 
-## Programming Languages (From GitHub)
-${topLanguages.map(([lang, count]) => `- **${lang}**: ${count} projects`).join('\n')}
+## Programming Languages (Calculated from GitHub)
+${stats.topLanguages.map(lang => 
+  `- **${lang.language}**: ${lang.percentage}% (${lang.lines.toLocaleString()} lines estimated)`
+).join('\n')}
 
-## Core Competencies
-- **iOS Development**: Native iOS apps with Swift/SwiftUI
-- **Full-Stack Web Development**: End-to-end web applications
-- **Desktop Development**: Cross-platform desktop applications
-- **UI/UX Design**: Modern, intuitive user interfaces
-- **API Development**: RESTful and GraphQL APIs
-- **Database Design**: Relational and NoSQL databases
-- **Performance Optimization**: Fast, efficient applications
-- **System Architecture**: Scalable, maintainable systems
+## Core Competencies (Based on Repository Analysis)
+${Object.entries(stats.skills).map(([skill, level]) => 
+  `- **${skill.charAt(0).toUpperCase() + skill.slice(1)} Development**: ${level}%`
+).join('\n')}
+
+## Repository Statistics
+- **Total Repositories**: ${stats.totalRepos}
+- **Total Stars**: ${stats.totalStars.toLocaleString()}
+- **Total Forks**: ${stats.totalForks.toLocaleString()}
+- **Most Popular Repo**: ${stats.mostActiveRepo}
+- **Estimated Experience**: ${stats.experience} years
 
 ## Primary Technologies
 ${formatTechStack(TECH_STACK)}
 
 ## Development Experience
-- **${PROFILE_DATA.experience}** of professional development
+- **${stats.experience} Years** of professional development
 - **Full-Stack Development**: Building complete applications
 - **Cross-Platform Development**: iOS, Web, Desktop
 - **Modern Frameworks**: Latest technologies and best practices
@@ -144,9 +155,7 @@ ${FOOTER_TEXT}`
   }
 
   static generateSystemInfo(repos: GitHubRepo[] = []): string {
-    const totalStars = repos.reduce((sum, repo) => sum + repo.stargazers_count, 0)
-    const totalForks = repos.reduce((sum, repo) => sum + repo.forks_count, 0)
-    const primaryLanguage = this.getPrimaryLanguage(repos)
+    const stats = calculateGitHubStats(repos)
     
     const topRepos = repos
       .sort((a, b) => b.stargazers_count - a.stargazers_count)
@@ -162,25 +171,29 @@ Uptime: ${formatUptime()} seconds
 Professional Status: EMPLOYED
 Development Stack: ACTIVE
 
-Repository Statistics:
-- Total Public Repos: ${repos.length}
-- Total Stars: ${totalStars}
-- Total Forks: ${totalForks}
-- Primary Language: ${primaryLanguage}
+Repository Statistics (Real-time from GitHub):
+- Total Public Repos: ${stats.totalRepos}
+- Total Stars: ${stats.totalStars.toLocaleString()}
+- Total Forks: ${stats.totalForks.toLocaleString()}
+- Most Popular Repo: ${stats.mostActiveRepo}
+- Estimated Experience: ${stats.experience} years
+
+Top Languages (by repository count):
+${stats.topLanguages.slice(0, 5).map(lang => 
+  `  - ${lang.language}: ${lang.percentage}% (${lang.lines.toLocaleString()} lines)`
+).join('\n')}
 
 Top Repositories:
 ${topRepos}
 
-Development Capabilities:
-- iOS Development: ENABLED (Swift/SwiftUI)
-- Web Development: ENABLED (React/Next.js)
-- Desktop Development: ENABLED
-- Full-Stack Development: ENABLED
-- UI/UX Design: ENABLED
-- API Development: ENABLED
+Development Capabilities (Calculated from GitHub):
+${Object.entries(stats.skills).map(([skill, level]) => 
+  `- ${skill.charAt(0).toUpperCase() + skill.slice(1)} Development: ENABLED (${level}%)`
+).join('\n')}
 
-Professional Experience: ${PROFILE_DATA.experience}
+Professional Experience: ${stats.experience} years
 Current Role: Full-Stack Developer
+Last Analysis: ${new Date().toLocaleString()}
 
 ---
 ${FOOTER_TEXT}`

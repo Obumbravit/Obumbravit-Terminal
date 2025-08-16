@@ -1,16 +1,17 @@
-export interface GitHubRepo {
-  id: number
-  name: string
-  description: string | null
-  html_url: string
-  homepage: string | null
-  language: string | null
-  stargazers_count: number
-  forks_count: number
-  updated_at: string
-  topics: string[]
-  private: boolean
-}
+  export interface GitHubRepo {
+    id: number
+    name: string
+    description: string | null
+    html_url: string
+    homepage: string | null
+    language: string | null
+    stargazers_count: number
+    forks_count: number
+    updated_at: string
+    topics: string[]
+    private: boolean
+    fork?: boolean
+  }
 
 import { ContentGenerator } from '@/lib/content-generators'
 
@@ -27,45 +28,285 @@ export async function fetchGitHubRepos(): Promise<GitHubRepo[]> {
   console.log('🔍 Starting GitHub repo fetch...')
   
   try {
-    // Simple, direct approach first
-    const response = await fetch('https://api.github.com/users/Obumbravit/repos?per_page=100&sort=updated', {
-      headers: {
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+    // Strategy 1: Try GitHub API with different endpoints
+    const apiEndpoints = [
+      'https://api.github.com/users/Obumbravit/repos?per_page=100&sort=updated',
+      'https://api.github.com/users/Obumbravit/repos?per_page=30&sort=updated',
+      'https://api.github.com/users/Obumbravit/repos?per_page=10&sort=updated'
+    ]
+    
+    for (const endpoint of apiEndpoints) {
+      try {
+        console.log(`📡 Trying API endpoint: ${endpoint}`)
+        const response = await fetch(endpoint, {
+          headers: {
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+          }
+        })
+        
+        if (response.ok) {
+          const repos: GitHubRepo[] = await response.json()
+          console.log('✅ Successfully fetched repos via API:', repos.length)
+          console.log('📋 All repo names:', repos.map(r => r.name))
+          console.log('🔀 Fork status:', repos.map(r => ({ name: r.name, fork: r.fork, private: r.private })))
+          
+          const publicRepos = repos.filter(repo => !repo.private)
+          console.log('📁 Public repos:', publicRepos.length)
+          console.log('📁 Public repo names:', publicRepos.map(r => r.name))
+          
+          return publicRepos.map(repo => ({
+            ...repo,
+            fork: repo.fork || false
+          }))
+        }
+      } catch (apiError) {
+        console.log(`❌ API endpoint failed: ${endpoint}`)
+        continue
       }
-    })
-    
-    console.log('📡 API Response status:', response.status)
-    
-    if (response.ok) {
-      const repos: GitHubRepo[] = await response.json()
-      console.log('✅ Successfully fetched repos:', repos.length)
-      console.log('📋 Repo names:', repos.map(r => r.name))
-      return repos.filter(repo => !repo.private)
     }
     
-    console.log('❌ API failed, trying scraping...')
+    console.log('🔄 All API endpoints failed, trying web scraping...')
     
-    // Fallback: Scrape the profile page
-    const scrapeResponse = await fetch('https://github.com/Obumbravit?tab=repositories')
-    const html = await scrapeResponse.text()
-    
-    // Look for repository links
-    const repoPattern = /href="\/Obumbravit\/([^"]+)"/g
-    const matches = html.match(repoPattern)
-    
-    if (matches) {
-      const repoNames = Array.from(new Set(
-        matches
-          .map(match => match.match(/\/Obumbravit\/([^"]+)/)?.[1])
-          .filter(Boolean)
-      ))
+    // Strategy 2: Advanced web scraping with multiple approaches
+    const scrapingStrategies = [
+      // Strategy 2a: Direct profile page scraping
+      async () => {
+        console.log('📄 Trying direct profile scraping...')
+        const response = await fetch('https://github.com/Obumbravit', {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+          }
+        })
+        
+        if (!response.ok) throw new Error(`Profile scraping failed: ${response.status}`)
+        
+        const html = await response.text()
+        console.log('📄 Profile HTML length:', html.length)
+        
+        // Extract repos from profile page
+        const repoPatterns = [
+          /href="\/Obumbravit\/([^"]+)"/g,
+          /data-testid="repository-name"[^>]*>([^<]+)</g,
+          /<a[^>]*href="\/Obumbravit\/([^"]+)"[^>]*>/g,
+          /"\/Obumbravit\/([^"]+)"/g,
+          /repository-name[^>]*>([^<]+)</g,
+          /<a[^>]*href="\/Obumbravit\/([^"]+)"/g
+        ]
+        
+        for (const pattern of repoPatterns) {
+          const matches = html.match(pattern)
+          if (matches && matches.length > 0) {
+            console.log(`🔍 Pattern found ${matches.length} matches:`, matches.slice(0, 5))
+            const repoNames = Array.from(new Set(
+              matches
+                .map(match => {
+                  const nameMatch = match.match(/\/Obumbravit\/([^"]+)/)
+                  return nameMatch ? nameMatch[1] : null
+                })
+                .filter(Boolean)
+            ))
+            
+            console.log('📋 Extracted repo names:', repoNames)
+            
+            if (repoNames.length > 0) {
+              console.log('✅ Found repos via profile scraping:', repoNames)
+              return repoNames
+            }
+          }
+        }
+        
+        throw new Error('No repos found in profile page')
+      },
       
-      console.log('🔍 Found repos via scraping:', repoNames)
+      // Strategy 2b: Repositories tab scraping
+      async () => {
+        console.log('📄 Trying repositories tab scraping...')
+        const response = await fetch('https://github.com/Obumbravit?tab=repositories', {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+          }
+        })
+        
+        if (!response.ok) throw new Error(`Repositories tab scraping failed: ${response.status}`)
+        
+        const html = await response.text()
+        console.log('📄 Repositories tab HTML length:', html.length)
+        
+        // Multiple patterns to find repos
+        const repoPatterns = [
+          /<a[^>]*href="\/Obumbravit\/([^"]+)"[^>]*>/g,
+          /data-testid="repository-name"[^>]*>([^<]+)</g,
+          /href="\/Obumbravit\/([^"]+)"/g,
+          /"\/Obumbravit\/([^"]+)"/g,
+          /repository-name[^>]*>([^<]+)</g,
+          /<a[^>]*href="\/Obumbravit\/([^"]+)"/g
+        ]
+        
+        for (const pattern of repoPatterns) {
+          const matches = html.match(pattern)
+          if (matches && matches.length > 0) {
+            console.log(`🔍 Repo tab pattern found ${matches.length} matches:`, matches.slice(0, 5))
+            const repoNames = Array.from(new Set(
+              matches
+                .map(match => {
+                  const nameMatch = match.match(/\/Obumbravit\/([^"]+)/)
+                  return nameMatch ? nameMatch[1] : null
+                })
+                .filter(Boolean)
+            ))
+            
+            console.log('📋 Repo tab extracted names:', repoNames)
+            
+            if (repoNames.length > 0) {
+              console.log('✅ Found repos via repositories tab:', repoNames)
+              return repoNames
+            }
+          }
+        }
+        
+        throw new Error('No repos found in repositories tab')
+      },
       
-      const repos: GitHubRepo[] = repoNames.map((name, index) => ({
+      // Strategy 2c: GitHub search API (public, no auth required)
+      async () => {
+        console.log('🔍 Trying GitHub search...')
+        const response = await fetch('https://api.github.com/search/repositories?q=user:Obumbravit&sort=updated&order=desc', {
+          headers: {
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+          }
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          const repoNames = data.items?.map((item: any) => item.name) || []
+          console.log('✅ Found repos via search:', repoNames)
+          return repoNames
+        }
+        
+        throw new Error('Search API failed')
+      },
+      
+      // Strategy 2d: Look for fork indicators in profile
+      async () => {
+        console.log('🔍 Looking for fork indicators...')
+        const response = await fetch('https://github.com/Obumbravit', {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+          }
+        })
+        
+        if (response.ok) {
+          const html = await response.text()
+          
+          // Look for fork-related content
+          const forkPatterns = [
+            /forked from[^>]*>([^<]+)</g,
+            /forked[^>]*>([^<]+)</g,
+            /data-testid="fork-button"[^>]*>([^<]+)</g
+          ]
+          
+          const forkRepos: string[] = []
+          for (const pattern of forkPatterns) {
+            const matches = html.match(pattern)
+            if (matches) {
+              console.log('🔀 Found fork indicators:', matches)
+              // Extract repo names from fork indicators
+              const repoMatches = html.match(/\/Obumbravit\/([^"]+)/g)
+              if (repoMatches) {
+                const repoNames = Array.from(new Set(
+                  repoMatches.map(match => match.replace('/Obumbravit/', ''))
+                ))
+                console.log('🔀 Potential fork repos:', repoNames)
+                return repoNames
+              }
+            }
+          }
+        }
+        
+        throw new Error('No fork indicators found')
+      }
+    ]
+    
+    // Try each scraping strategy
+    for (const strategy of scrapingStrategies) {
+      try {
+        const repoNames = await strategy()
+        if (repoNames && repoNames.length > 0) {
+          const repos: GitHubRepo[] = repoNames.map((name: string, index: number) => ({
+            id: index + 1,
+            name: name,
+            description: `Repository: ${name}`,
+            html_url: `https://github.com/Obumbravit/${name}`,
+            homepage: null,
+            language: 'Unknown',
+            stargazers_count: 0,
+            forks_count: 0,
+            updated_at: new Date().toISOString(),
+            topics: [],
+            private: false,
+            fork: false // We'll detect forks in the content generation
+          }))
+          
+          console.log('✅ Created repo objects:', repos.length)
+          return repos
+        }
+      } catch (strategyError) {
+        console.log(`❌ Strategy failed:`, strategyError)
+        continue
+      }
+    }
+    
+    // Strategy 3: Dynamic repository discovery
+    console.log('🔄 Trying dynamic repository discovery...')
+    const commonRepoNames = [
+      'portfolio', 'website', 'blog', 'app', 'project', 'demo', 'test',
+      'obumbravit-terminal', 'terminal', 'personal', 'resume', 'cv',
+      'github-io', 'io', 'site', 'web', 'frontend', 'backend', 'fullstack',
+      'fork', 'forked', 'clone', 'copy', 'duplicate'
+    ]
+    
+    const discoveredRepos: string[] = []
+    
+    for (const repoName of commonRepoNames) {
+      try {
+        const response = await fetch(`https://github.com/Obumbravit/${repoName}`, {
+          method: 'HEAD',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+          }
+        })
+        
+        if (response.ok) {
+          discoveredRepos.push(repoName)
+          console.log(`✅ Discovered repo: ${repoName}`)
+        }
+      } catch (error) {
+        // Repo doesn't exist, continue
+        continue
+      }
+    }
+    
+    if (discoveredRepos.length > 0) {
+      console.log('✅ Dynamic discovery found repos:', discoveredRepos)
+      const repos: GitHubRepo[] = discoveredRepos.map((name: string, index: number) => ({
         id: index + 1,
-        name: name!,
+        name: name,
         description: `Repository: ${name}`,
         html_url: `https://github.com/Obumbravit/${name}`,
         homepage: null,
@@ -74,24 +315,32 @@ export async function fetchGitHubRepos(): Promise<GitHubRepo[]> {
         forks_count: 0,
         updated_at: new Date().toISOString(),
         topics: [],
-        private: false
+        private: false,
+        fork: false // We'll detect forks in the content generation
       }))
       
-      console.log('✅ Created repo objects:', repos.length)
       return repos
     }
     
-    console.log('❌ No repos found via scraping')
-    throw new Error('No repositories found')
+    throw new Error('All strategies failed')
     
   } catch (error) {
-    console.error('💥 Error fetching repos:', error)
-    throw error
+    console.error('💥 All GitHub fetching strategies failed:', error)
+    
+    // Final fallback: Return empty array to use basic file system
+    console.log('🔄 Using basic file system as final fallback')
+    return []
   }
 }
 
-export async function fetchRepoContents(repoName: string, path: string = ''): Promise<FileSystemNode[]> {
-  console.log(`📁 Fetching contents for ${repoName}/${path}`)
+export async function fetchRepoContents(repoName: string, path: string = '', maxDepth: number = 10, currentDepth: number = 0): Promise<FileSystemNode[]> {
+  console.log(`📁 Fetching contents for ${repoName}/${path} (depth: ${currentDepth})`)
+  
+  // Prevent infinite recursion
+  if (currentDepth > maxDepth) {
+    console.log(`⚠️ Max depth reached for ${repoName}/${path}`)
+    return []
+  }
   
   try {
     const url = `https://api.github.com/repos/Obumbravit/${repoName}/contents/${path}`
@@ -124,8 +373,8 @@ export async function fetchRepoContents(repoName: string, path: string = ''): Pr
     
     console.log(`📋 Found ${contents.length} items in ${repoName}/${path}`)
     
-    // Handle directory - fetch deeper but limit recursion
-    const items = await Promise.all(contents.map(async (item: any) => {
+    // Handle directory - fetch recursively with delay to avoid rate limits
+    const items = await Promise.all(contents.map(async (item: any, index: number) => {
       const node: FileSystemNode = {
         name: item.name,
         type: item.type === 'dir' ? 'directory' : 'file',
@@ -133,12 +382,17 @@ export async function fetchRepoContents(repoName: string, path: string = ''): Pr
         content: undefined
       }
       
-      // For directories, fetch one level deeper
+      // For directories, fetch recursively
       if (item.type === 'dir') {
         const childPath = path ? `${path}/${item.name}` : item.name
+        
+        // Add delay between requests to avoid rate limiting
+        if (index > 0) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+        
         try {
-          // Only go one level deeper to avoid rate limits
-          const childContents = await fetchRepoContents(repoName, childPath)
+          const childContents = await fetchRepoContents(repoName, childPath, maxDepth, currentDepth + 1)
           node.children = childContents
           console.log(`📂 Fetched ${childContents.length} items for ${repoName}/${childPath}`)
         } catch (error) {
@@ -155,6 +409,92 @@ export async function fetchRepoContents(repoName: string, path: string = ''): Pr
   } catch (error) {
     console.error(`💥 Error fetching contents for ${repoName}/${path}:`, error)
     return []
+  }
+}
+
+// More aggressive repository content fetching
+export async function fetchRepoContentsAggressive(repoName: string): Promise<FileSystemNode[]> {
+  console.log(`🚀 Starting aggressive fetch for ${repoName}`)
+  
+  try {
+    // Try to get the default branch first
+    const repoResponse = await fetch(`https://api.github.com/repos/Obumbravit/${repoName}`, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+      }
+    })
+    
+    let defaultBranch = 'main'
+    if (repoResponse.ok) {
+      const repoData = await repoResponse.json()
+      defaultBranch = repoData.default_branch || 'main'
+    }
+    
+    // Use Git Trees API to get complete repository structure
+    const treeResponse = await fetch(`https://api.github.com/repos/Obumbravit/${repoName}/git/trees/${defaultBranch}?recursive=1`, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+      }
+    })
+    
+    if (treeResponse.ok) {
+      const treeData = await treeResponse.json()
+      const tree = treeData.tree || []
+      
+      console.log(`🌳 Found ${tree.length} items in tree for ${repoName}`)
+      
+      // Convert tree to FileSystemNode structure
+      const nodes: FileSystemNode[] = []
+      const nodeMap = new Map<string, FileSystemNode>()
+      
+      // First pass: create all nodes
+      tree.forEach((item: any) => {
+        const pathParts = item.path.split('/')
+        const name = pathParts[pathParts.length - 1]
+        const isDirectory = item.type === 'tree'
+        
+        const node: FileSystemNode = {
+          name,
+          type: isDirectory ? 'directory' : 'file',
+          path: item.path,
+          children: isDirectory ? [] : undefined
+        }
+        
+        nodeMap.set(item.path, node)
+      })
+      
+      // Second pass: build hierarchy
+      tree.forEach((item: any) => {
+        const node = nodeMap.get(item.path)!
+        const pathParts = item.path.split('/')
+        
+        if (pathParts.length === 1) {
+          // Root level item
+          nodes.push(node)
+        } else {
+          // Child item
+          const parentPath = pathParts.slice(0, -1).join('/')
+          const parent = nodeMap.get(parentPath)
+          if (parent && parent.children) {
+            parent.children.push(node)
+          }
+        }
+      })
+      
+      console.log(`✅ Aggressive fetch created ${nodes.length} root nodes for ${repoName}`)
+      return nodes
+    }
+    
+    // Fallback to regular fetch
+    console.log(`🔄 Falling back to regular fetch for ${repoName}`)
+    return await fetchRepoContents(repoName, '', 20, 0)
+    
+  } catch (error) {
+    console.error(`💥 Error in aggressive fetch for ${repoName}:`, error)
+    // Fallback to regular fetch
+    return await fetchRepoContents(repoName, '', 20, 0)
   }
 }
 
@@ -241,13 +581,13 @@ export async function buildFileSystem(repos: GitHubRepo[]): Promise<FileSystemNo
                 name: 'about.md',
                 type: 'file',
                 path: '/home/obumbravit/about.md',
-                content: ContentGenerator.generateAbout()
+                content: ContentGenerator.generateAbout(repos)
               },
               {
                 name: 'resume.md',
                 type: 'file',
                 path: '/home/obumbravit/resume.md',
-                content: ContentGenerator.generateResume()
+                content: ContentGenerator.generateResume(repos)
               },
               {
                 name: 'contact.txt',
@@ -268,9 +608,26 @@ export async function buildFileSystem(repos: GitHubRepo[]): Promise<FileSystemNo
                 children: await Promise.all(repos.map(async repo => {
                   console.log(`📂 Processing repo: ${repo.name}`)
                   try {
-                    // Fetch actual repository contents
-                    const contents = await fetchRepoContents(repo.name)
+                    // Fetch complete repository contents with higher depth limit
+                    const contents = await fetchRepoContents(repo.name, '', 20, 0)
                     console.log(`✅ Fetched ${contents.length} items for ${repo.name}`)
+                    
+                    // If we got very few items, try a more aggressive approach
+                    if (contents.length < 5) {
+                      console.log(`🔄 Trying aggressive fetch for ${repo.name}...`)
+                      const aggressiveContents = await fetchRepoContentsAggressive(repo.name)
+                      if (aggressiveContents.length > contents.length) {
+                        console.log(`✅ Aggressive fetch got ${aggressiveContents.length} items for ${repo.name}`)
+                        return {
+                          name: repo.name,
+                          type: 'directory' as const,
+                          path: `/home/obumbravit/projects/${repo.name}`,
+                          repo,
+                          children: aggressiveContents
+                        }
+                      }
+                    }
+                    
                     return {
                       name: repo.name,
                       type: 'directory' as const,
@@ -383,6 +740,11 @@ export async function buildFileSystem(repos: GitHubRepo[]): Promise<FileSystemNo
 }
 
 function generateReadme(repo: GitHubRepo): string {
+  // Simple fork detection based on common fork patterns
+  const isFork = repo.name.toLowerCase().includes('fork') || 
+                 repo.description?.toLowerCase().includes('fork') ||
+                 repo.html_url.includes('fork')
+  
   return `# ${repo.name}
 
 ${repo.description || 'No description available.'}
@@ -393,6 +755,7 @@ ${repo.description || 'No description available.'}
 - **Forks**: ${repo.forks_count}
 - **Last Updated**: ${new Date(repo.updated_at).toLocaleDateString()}
 - **Topics**: ${repo.topics.join(', ') || 'None'}
+${isFork ? '- **Type**: Forked Repository' : ''}
 
 ## Links
 - **GitHub**: ${repo.html_url}
